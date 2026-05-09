@@ -1,0 +1,80 @@
+# =============================================================================
+# docker-compose.yml — full local production-like stack
+#
+# Services:
+#   server     — the malaysia-data REST + MCP server (our app)
+#   redis      — L2 cache for the two-tier cache layer
+#   prometheus — scrapes /metrics from server
+#   grafana    — pre-provisioned dashboard for the Prometheus data
+#
+# Run: docker compose -f deploy/docker-compose.yml up
+# Open: http://localhost:8000/docs (Swagger UI)
+#       http://localhost:9090       (Prometheus)
+#       http://localhost:3000       (Grafana — admin/admin)
+# =============================================================================
+
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: malaysia-data-mcp:0.1.0
+    ports:
+      - "8000:8000"
+    environment:
+      MALAYSIA_DATA_ENVIRONMENT: prod
+      MALAYSIA_DATA_LOG_LEVEL: INFO
+      MALAYSIA_DATA_LOG_JSON: "true"
+      MALAYSIA_DATA_CACHE_REDIS_URL: redis://redis:6379/0
+      MALAYSIA_DATA_METRICS_ENABLED: "true"
+      MALAYSIA_DATA_OTEL_ENABLED: "false"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  grafana-storage:

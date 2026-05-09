@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "malaysia-data": {
+      "command": "python",
+      "args": ["-m", "malaysia_data_mcp.presentation.mcp_server"],
+      "env": {
+        "PYTHONPATH": "/ABSOLUTE/PATH/TO/mcp-server-malaysia-data/src",
+        "MALAYSIA_DATA_LOG_LEVEL": "INFO",
+        "MALAYSIA_DATA_LOG_JSON": "false"
+      }
+    }
+  }
+}
